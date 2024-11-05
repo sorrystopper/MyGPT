@@ -40,7 +40,7 @@ class myGPT(nn.Module):
 
     def nll_loss(self, y_pred, y, y_mask, avg=True):
         cost = -torch.log(torch.gather(y_pred, 2,
-                          y.view(y.size(0), y.size(1), 1)))
+                                       y.view(y.size(0), y.size(1), 1)))
         cost = cost.view(y.shape)
         y_mask = y_mask.view(y.shape)
         if avg:
@@ -48,49 +48,44 @@ class myGPT(nn.Module):
         else:
             cost = torch.sum(cost * y_mask, 0)
         cost = cost.view((y.size(1), -1))
-        ppl = 2**cost
+        ppl = 2 ** cost
         return cost.mean(), cost.sum().item(), ppl.sum().item()
-    
+
     def ppl(self, truth, inp, msk, train_type):
-        if train_type == 'pretrain':
-            seq_len, bsz = inp.size()
-            self_attn_mask = self.attn_mask(seq_len)
-            x = self.tok_embed(inp) + self.pos_embed(inp) 
-        else:
-            seq_len, bsz = truth.size()
-            self_attn_mask = self.attn_mask(seq_len)
-            x = self.tok_embed(truth) + self.pos_embed(truth)
+        seq_len, bsz = inp.size()
+        self_attn_mask = self.attn_mask(seq_len)
+        x = self.tok_embed(inp) + self.pos_embed(inp)
         x = self.emb_layer_norm(x)
         padding_mask = torch.eq(truth, self.vocab.padding_idx)
         if not padding_mask.any():
             padding_mask = None
         for layer in self.layers:
-            x, _, _ = layer(x, self_padding_mask=padding_mask,self_attn_mask=self_attn_mask)
+            x, _, _ = layer(x, self_padding_mask=padding_mask, self_attn_mask=self_attn_mask)
         x = self.one_more_layer_norm(gelu(self.one_more(x)))
         pred = torch.softmax(self.one_proj(x), -1)
-        _,pred_y = pred.max(-1)
+        _, pred_y = pred.max(-1)
         tot_tokens = msk.float().sum().item()
-        acc = (torch.eq(pred_y, truth).float()*msk).sum().item()
+        acc = (torch.eq(pred_y, truth).float() * msk).sum().item()
         loss, nll, ppl = self.nll_loss(pred, truth, msk)
-        return acc, nll, ppl, tot_tokens, bsz 
-    
-    def work(self,inp):
+        return acc, nll, ppl, tot_tokens, bsz
+
+    def work(self, inp):
         seq_len, bsz = inp.size()
         self_attn_mask = self.attn_mask(seq_len)
         x = self.tok_embed(inp) + self.pos_embed(inp)
         x = self.emb_layer_norm(x)
-        x = F.dropout(x , p = self.dropout, training =self.training)
-        padding_mask = torch.eq(inp,self.vocab.padding_idx)
+        x = F.dropout(x, p=self.dropout, training=self.training)
+        padding_mask = torch.eq(inp, self.vocab.padding_idx)
         if not padding_mask.any():
             padding_mask = None
         for layer in self.layers:
-            x,_,_ = layer(x, self_padding_mask = padding_mask,self_attn_mask=self_attn_mask)
-        
+            x, _, _ = layer(x, self_padding_mask=padding_mask, self_attn_mask=self_attn_mask)
+
         x = self.one_more_layer_norm(gelu(self.one_more(x)))
         probs = torch.softmax(self.one_proj(x), -1)
         _, pred_y = probs.max(-1)
-        return probs, pred_y  
-      
+        return probs, pred_y
+
     def work_incremental(self, inp, incremental_state=None):
         seq_len, bsz = inp.size()
         x = self.tok_embed(inp) + self.pos_embed(inp)
@@ -98,31 +93,27 @@ class myGPT(nn.Module):
         padding_mask = torch.eq(inp, self.vocab.padding_idx)
         if not padding_mask.any():
             padding_mask = None
-        
+
         if incremental_state is None:
             self_attn_mask = self.attn_mask(seq_len)
             incremental_state = {}
         else:
-            x = x[-1, : , :].unsqueeze(0)
+            x = x[-1, :, :].unsqueeze(0)
             self_attn_mask = None
-        
+
         for layer in self.layers:
-            x,_,_ = layer.work_incremental(x, self_padding_mask=padding_mask, self_attn_mask=self_attn_mask,incremental_state=incremental_state)
-            
+            x, _, _ = layer.work_incremental(x, self_padding_mask=padding_mask, self_attn_mask=self_attn_mask,
+                                             incremental_state=incremental_state)
+
         x = self.one_more_layer_norm(gelu(self.one_more(x)))
         probs = torch.softmax(self.one_proj(x), -1)
         _, pred_y = probs.max(-1)
         return probs, pred_y, incremental_state
-                    
+
     def forward(self, truth, inp, msk, train_type):
-        if train_type == 'pretrain':
-            seq_len, bsz = inp.size()
-            self_attn_mask = self.attn_mask(seq_len)
-            x = self.tok_embed(inp) + self.pos_embed(inp)   
-        else:
-            seq_len, bsz = truth.size()
-            self_attn_mask = self.attn_mask(seq_len)
-            x = self.tok_embed(truth) + self.pos_embed(truth)
+        seq_len, bsz = inp.size()
+        self_attn_mask = self.attn_mask(seq_len)
+        x = self.tok_embed(inp) + self.pos_embed(inp)
         x = self.emb_layer_norm(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
         padding_mask = torch.eq(truth, self.vocab.padding_idx)
@@ -138,5 +129,5 @@ class myGPT(nn.Module):
         loss, nll, ppl = self.nll_loss(pred, truth, msk)
         _, pred_y = pred.max(-1)
         tot_tokens = msk.float().sum().item()
-        acc = (torch.eq(pred_y, truth).float()*msk).sum().item()
+        acc = (torch.eq(pred_y, truth).float() * msk).sum().item()
         return (pred_y, truth), loss, acc, nll, ppl, tot_tokens, bsz

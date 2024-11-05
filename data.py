@@ -5,58 +5,39 @@ import json
 
 BUFSIZE = 4096000
 
-def sft_parse_lines(lines, max_len, min_len, separator="|"):
+
+def sft_parse_lines(lines, max_len, min_len, ):
     data = []
     for line in lines:
         line = line.strip()
         if not line:
             continue
         entry = json.loads(line)
-        
+
         instruction = entry["instruction"].strip()
         output = entry["output"].strip()
-        
+
         if not instruction or not output:
             continue
-        
-        # 确保 input 存在并进行处理
+
         input_text = entry.get("input")
         if input_text is not None:
             input_text = input_text.strip()
         else:
-            input_text = "" 
-        
-        # 使用分隔符拼接字段
-        full_input = f"{instruction}{separator}{input_text}" if input_text else instruction
-        
-        # 分割成小块
+            input_text = ""
+
+            # 使用分隔符拼接字段
+        full_input = f"### INST:\n{instruction}，\n\n### INP:\n{input_text}，\n\n### SYS:\n{output}" if input_text else f"### INST{instruction}，\n\n### SYS:\n{output}"
+
         full_input = [w for w in full_input]
-        output = [w for w in output]
-        
         input_sents = chunks(full_input, max_len)
-        output_sents = chunks(output, max_len)
 
         # 只保留长度合适的句子
-        if len(input_sents[-1]) < min_len or len(output_sents[-1]) < min_len:
+        if len(input_sents[-1]) < min_len:
             input_sents = input_sents[:-1]
-            output_sents = output_sents[:-1]
 
-        data.extend(zip(input_sents, output_sents))  # 组合输入和输出
+        data.extend(input_sents)
     return data
-
-
-def sft_batchify(data, tknizer):
-    truth, inp, msk = [], [], []
-    for input_text, output_text in data:
-        inp.append(input_text)
-        truth.append(output_text)
-        msk.append([1 for i in range(len(output_text))])  # 输出的掩码
-
-    truth = torch.LongTensor(ListsToTensor(truth, tknizer)).t_().contiguous()
-    inp = torch.LongTensor(ListsToTensor(inp, tknizer)).t_().contiguous()
-    msk = torch.FloatTensor(ListsToTensor(msk)).t_().contiguous()
-    return truth, inp, msk
-
 
 
 def s2t(strs, tknizer):
@@ -99,7 +80,7 @@ def ListsToTensor(xs, tknizer=None):
             y = tknizer.token2idx(
                 x) + [tknizer.padding_idx] * (max_len - len(x))
         else:
-            y = x + [0]*(max_len - len(x))
+            y = x + [0] * (max_len - len(x))
         ys.append(y)
     return ys
 
@@ -138,18 +119,12 @@ class DataLoader(object):
             lines = self.stream.readlines(BUFSIZE)
         if self.train_type == "pretrain":
             data = parse_lines(lines[:-1], self.max_len, self.min_len)
-            random.shuffle(data)
-
-            idx = 0
-            while idx < len(data):
-                yield batchify(data[idx:idx+self.batch_size], self.tknizer)
-                idx += self.batch_size
         else:
-            self.epoch_id = 1 
+            self.epoch_id = 1
             data = sft_parse_lines(lines[:-1], self.max_len, self.min_len)
-            random.shuffle(data)
 
-            idx = 0
-            while idx < len(data):
-                yield sft_batchify(data[idx:idx+self.batch_size], self.tknizer)
-                idx += self.batch_size
+        random.shuffle(data)
+        idx = 0
+        while idx < len(data):
+            yield batchify(data[idx:idx + self.batch_size], self.tknizer)
+            idx += self.batch_size

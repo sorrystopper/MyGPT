@@ -11,6 +11,7 @@ pretrain代码在`pretrain.py`中，用`bash step_02.sh`运行。
 用`python pretrain.py`运行。
 注意：
 1. 在`pretrain.py`代码中自己修改想要评测模型的位置。
+2. 修改`eval_type`变量来选择是对`pretrain`测试还是对`sft`测试
 
 # sft
 用`bash step_02.sh`运行。

@@ -26,6 +26,7 @@ def init_model(m_path, device, vocab):
     lm_model.eval()
     return lm_model, lm_vocab, lm_args
 
+
 def greedy(lm_model, lm_vocab, device, s, max_len):
     x, m = s2t(s, lm_vocab)
     x = x.to(device)
@@ -35,9 +36,9 @@ def greedy(lm_model, lm_vocab, device, s, max_len):
         next_tk = []
         for i in range(len(s)):
             next_tk.append(lm_vocab.idx2token(pred[len(s[i]) - 1, i].item()))
-        
+
         s_ = []
-        for idx,(sent, t) in enumerate(zip(s, next_tk)):
+        for idx, (sent, t) in enumerate(zip(s, next_tk)):
             if t == '<eos>':
                 res.append(sent)
             else:
@@ -48,15 +49,14 @@ def greedy(lm_model, lm_vocab, device, s, max_len):
         x, m = s2t(s, lm_vocab)
         x = x.to(device)
     res += s_
-    
+
     r = ''.join(res[0])
     if "<bos>" in r:
         return r.split("<bos>"[1])
     else:
         return r
 
-        
-                
+
 @torch.no_grad()
 def top_k_inc(lm_model, lm_vocab, device, s, k, max_len):
     start = time.time()
@@ -79,10 +79,10 @@ def top_k_inc(lm_model, lm_vocab, device, s, k, max_len):
             sampled = torch.multinomial(ps, num_samples=1)
             sampled_idx = idx[sampled]
             next_tk.append(lm_vocab.idx2token(sampled_idx.item()))
-            
+
         s_ = []
         bidx = [1] * len(s)
-        for idx,(sent, t) in enumerate(zip(s, next_tk)):
+        for idx, (sent, t) in enumerate(zip(s, next_tk)):
             if t == '<eos>':
                 res.append(sent)
             else:
@@ -90,7 +90,7 @@ def top_k_inc(lm_model, lm_vocab, device, s, k, max_len):
         if not s_:
             break
         s = s_
-        x, m= s2t(s, lm_vocab)
+        x, m = s2t(s, lm_vocab)
         x = x.to(device)
         bidx = torch.BoolTensor(bidx).to(device)
         incremental_state["bidx"] = bidx
@@ -100,14 +100,15 @@ def top_k_inc(lm_model, lm_vocab, device, s, k, max_len):
         return r.splot("<bos>")[1]
     else:
         return r
-    
-    
+
+
 def top_p_sampling(logits, k, p):
-    ps, idx = torch.topk(logits, k = k)
+    ps, idx = torch.topk(logits, k=k)
     for i in range(k):
         if torch.sum(ps[:i]) >= p:
             return ps[:i], idx[:i]
-    return ps, idx    
+    return ps, idx
+
 
 def top_p_inc(lm_model, lm_vocab, device, s, k, p, max_len):
     start = time.time()
@@ -130,10 +131,10 @@ def top_p_inc(lm_model, lm_vocab, device, s, k, p, max_len):
             sampled = torch.multinomial(ps, num_samples=1)
             sampled_idx = idx[sampled]
             next_tk.append(lm_vocab.idx2token(sampled_idx.item()))
-            
+
         s_ = []
         bidx = [1] * len(s)
-        for idx,(sent, t) in enumerate(zip(s, next_tk)):
+        for idx, (sent, t) in enumerate(zip(s, next_tk)):
             if t == '<eos>':
                 res.append(sent)
             else:
@@ -141,7 +142,7 @@ def top_p_inc(lm_model, lm_vocab, device, s, k, p, max_len):
         if not s_:
             break
         s = s_
-        x, m= s2t(s, lm_vocab)
+        x, m = s2t(s, lm_vocab)
         x = x.to(device)
         bidx = torch.BoolTensor(bidx).to(device)
         incremental_state["bidx"] = bidx
@@ -151,20 +152,33 @@ def top_p_inc(lm_model, lm_vocab, device, s, k, p, max_len):
         return r.splot("<bos>")[1]
     else:
         return r
-    
-    
+
+
 if __name__ == "__main__":
+    val_type = "sft"
     device = 7
     print("loading...")
-    m_path = "./ckpt/epoch0_batch_39999"
+    m_path = "./ckpt/epoch1_batch_799"
     v_path = "./model/vocab.txt"
     lm_model, lm_vocab, lm_args = init_model(m_path, device, v_path)
     print("done.")
 
     max_len = 50
-    qs = ["介绍下南京航空航天大学。",
-          "Please introduce Nanjing University of Aeronautics and Astronautics",
-          "The meaning of life is "]
+    if val_type == "sft":
+        qs = [
+            "### INST:\n ⽩⽇依⼭尽，\n\n### SYS:\n", \
+            "### INST:\n ⽩⽇依⼭尽，\n\n### SYS:\n", \
+            "### INST:\n 已知三个数分别为 1, 2, 3，则它们的平均数是\n\n### SYS:\n", \
+            "### INST:\n ⼩明总共有 15 个苹果，他分别给了 3 个⼈两个苹果，然后⾃⼰⼜吃了⼀个苹果，那么它还剩⼏个苹果？\n\n### SYS:\n", \
+            "### INST:\n 根据⽜顿第⼆定律，物体的加速度等于\n\n### SYS:\n", \
+            "### INST:\n 碳纳⽶管是⼀种新型的材料，具有⾮常独特的电学和光学性质。在过去的⼏年中，我们对碳纳\n\n### SYS:\n", \
+            "### INST:\n 下⾯是⼀段⽤ python 写的快速排序的代码:\n\n### SYS:\n", \
+            "### INST:\n 下⾯是⼀个使⽤ PyTorch 和 Transformer 的示例代码，⽤于训练⼀个⽂本分类模型：import torch\nimport torch.nn as nn\nfrom torch.utils.data import DataLoader, Dataset\n\n### SYS:\n"
+        ]
+    else:
+        qs = ["介绍下南京航空航天大学。",
+              "Please introduce Nanjing University of Aeronautics and Astronautics",
+              "The meaning of life is "]
     print(qs)
     i = 0
     for q in qs:
@@ -198,4 +212,4 @@ if __name__ == "__main__":
         print("tk50: ", r6)
         print("tk500: ", r7)
         print("tp0.95: ", r8)
-        print(mstime()-start)
+        print(mstime() - start)

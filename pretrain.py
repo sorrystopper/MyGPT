@@ -7,7 +7,7 @@ import torch.multiprocessing as mp
 
 from mygpt import myGPT
 from tokenizer import Tokenizer
-from data import DataLoader, parse_lines, batchify,sft_parse_lines, sft_batchify
+from data import DataLoader, parse_lines, batchify, sft_parse_lines
 from optim import Optim
 
 import argparse
@@ -50,7 +50,7 @@ def parse_config():
     parser.add_argument("--MASTER_PORT", type=str)
     parser.add_argument("--start_rank", type=int)
     parser.add_argument("--backend", type=str)
-    parser.add_argument("--train_type", type=str,default="pretrain")
+    parser.add_argument("--train_type", type=str, default="pretrain")
 
     return parser.parse_args()
 
@@ -94,10 +94,7 @@ def eval_epoch(lm_args, model, tknizer, local_rank, label, batch_acm, train_type
     count_bsz = 0.
     count_tok = 0.
     while idx < len(ds):
-        if train_type == "pretrain":
-            ys_truth, ys_inp, msk = batchify(ds[idx: idx + batch_size], tknizer)
-        else:
-            ys_truth, ys_inp, msk = sft_batchify(ds[idx: idx + batch_size], tknizer)
+        ys_truth, ys_inp, msk = batchify(ds[idx: idx + batch_size], tknizer)
         ys_truth = ys_truth.cuda(local_rank)
         ys_inp = ys_inp.cuda(local_rank)
         msk = msk.cuda(local_rank)
@@ -112,7 +109,7 @@ def eval_epoch(lm_args, model, tknizer, local_rank, label, batch_acm, train_type
         idx += batch_size
 
     print('valiadting: label %s, batch_acm %d, acc %.6f, nll %.6f, ppl %.6f' % (
-        label, batch_acm, avg_acc/count_tok, avg_nll/count_bsz, avg_ppl/count_bsz), flush=True)
+        label, batch_acm, avg_acc / count_tok, avg_nll / count_bsz, avg_ppl / count_bsz), flush=True)
 
 
 def run(args, local_rank):
@@ -141,9 +138,9 @@ def run(args, local_rank):
                             args.batch_size, args.max_len, args.min_len, args.train_type)
     batch_acm = 0
     acc_acm, nll_acm, ppl_acm, ntokens_acm, nxs, npairs_acm, loss_acm = 0., 0., 0., 0., 0., 0., 0.
-    
+
     train_losses = []
-    
+
     for epoch in tqdm(range(args.epoch), desc="Epoch Progress"):
         model.train()
         for truth, inp, msk in train_data:
@@ -170,7 +167,8 @@ def run(args, local_rank):
 
             if (args.world_size == 1 or dist.get_rank() == 0) and batch_acm % args.print_every == -1 % args.print_every:
                 print('batch_acm %d, loss %.3f, acc %.3f, nll %.3f, ppl %.3f, x_acm %d, lr %.6f' % (
-                    batch_acm, loss_acm/args.print_every, acc_acm/ntokens_acm, nll_acm/nxs, ppl_acm/nxs, npairs_acm, optimizer._rate), flush=True)
+                    batch_acm, loss_acm / args.print_every, acc_acm / ntokens_acm, nll_acm / nxs, ppl_acm / nxs,
+                    npairs_acm, optimizer._rate), flush=True)
                 acc_acm, nll_acm, ppl_acm, ntokens_acm, loss_acm, nxs = 0., 0., 0., 0., 0., 0.
 
             if (args.world_size == 1 or dist.get_rank() == 0) and batch_acm % args.save_every == -1 % args.save_every:
@@ -183,7 +181,7 @@ def run(args, local_rank):
                 eval_epoch(args, model, tknizer, local_rank, "epoch-" +
                            str(train_data.epoch_id) + "-acm-" + str(batch_acm), batch_acm, args.train_type)
                 model.train()
-                
+
     plt.figure(figsize=(10, 5))
     plt.plot(train_losses, label='Train Loss')
     plt.xlabel('Batch')

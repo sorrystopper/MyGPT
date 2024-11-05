@@ -5,18 +5,17 @@ from tqdm import tqdm
 import random
 import numpy as np
 import torch
-from transformers import LlamaForCausalLM, LlamaTokenizer
 from evaluator import Evaluator
-
-
+import ipdb
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from mygpt import myGPT
 from tokenizer import Tokenizer
 from generator import generate
 
+
 class Llama_Evaluator(Evaluator):
-    def __init__(self, choices, k, model_path,vocab_path, device, temperature=0.2):
+    def __init__(self, choices, k, model_path, vocab_path, device, temperature=1.0):
         super(Llama_Evaluator, self).__init__(choices, model_path, k)
         load_type = torch.float16
         self.model_path = model_path
@@ -25,11 +24,12 @@ class Llama_Evaluator(Evaluator):
         lm_args = ckpt['args']
         self.device = device
         self.tokenizer = Tokenizer(vocab_path, min_occur_cnt=lm_args.min_occur_cnt, specials=[])
-        self.model = myGPT(device, self.tokenizer, lm_args.embed_dim, lm_args.ff_embed_dim, lm_args.num_heads,lm_args.dropout, lm_args.layers)
+        self.model = myGPT(device, self.tokenizer, lm_args.embed_dim, lm_args.ff_embed_dim, lm_args.num_heads,
+                           lm_args.dropout, lm_args.layers)
         self.model.load_state_dict(ckpt['model'])
         self.model = self.model.to(device)
         self.model.eval()
-        
+
         self.generation_config = dict(
             temperature=temperature,
             top_k=40,
@@ -49,23 +49,22 @@ class Llama_Evaluator(Evaluator):
         self.C_id = self.tokenizer.encode("：C")[-1]
         self.D_id = self.tokenizer.encode("：D")[-1]
 
-
     def eval_subject(self, subject_name,
-            test_df,
-            dev_df=None,
-            few_shot=False,
-            cot=False,
-            save_result_dir=None,
-            with_prompt=False,
-            constrained_decoding=False,
-            do_test=False):
+                     test_df,
+                     dev_df=None,
+                     few_shot=False,
+                     cot=False,
+                     save_result_dir=None,
+                     with_prompt=False,
+                     constrained_decoding=False,
+                     do_test=False):
         all_answers = {}
         if constrained_decoding is True:
             self.generation_config['output_scores'] = True
             self.generation_config['return_dict_in_generate'] = True
             self.generation_config['max_new_tokens'] = 1
             self.generation_config['top_p'] = 1.0
-            self.generation_config['top_k'] = 0
+            self.generation_config['top_k'] = 40
 
         correct_num = 0
         if save_result_dir:
@@ -77,33 +76,36 @@ class Llama_Evaluator(Evaluator):
             history = ''
         answers = ['NA'] * len(test_df) if do_test is True else list(test_df['answer'])
         for row_index, row in tqdm(test_df.iterrows(), total=len(test_df)):
-            question = self.format_example(row, include_answer=False, cot=cot,with_prompt=with_prompt)
+            question = self.format_example(row, include_answer=False, cot=cot, with_prompt=with_prompt)
             instruction = history + question
             if with_prompt:
                 prompt_template = (
                     "Below is an instruction that describes a task. "
                     "Write a response that appropriately completes the request.\n\n"
                     "### Instruction:\n{instruction}\n\n### Response: ")
-                instruction = prompt_template.format_map({'instruction': instruction,'subject':subject_name})
-                
+                instruction = prompt_template.format_map({'instruction': instruction, 'subject': subject_name})
+
                 prompt_template = '### INST:\n{instruction}\n\n### SYS:\n'
                 instruction = instruction = prompt_template.format_map({'instruction': instruction})
-                
-            inputs, response, logits = generate(self.model, self.tokenizer, self.device,instruction, self.generation_config['top_k'],\
-                                                self.generation_config['top_p'], self.generation_config['max_new_tokens'],\
+
+            inputs, response, logits = generate(self.model, self.tokenizer, self.device, instruction,
+                                                self.generation_config['top_k'], \
+ \
+                                                self.generation_config['top_p'],
+                                                self.generation_config['max_new_tokens'], \
                                                 self.generation_config['temperature'])
-            
-            
+
+            # ipdb.set_trace()
             length, batch_size = inputs.shape
             if constrained_decoding is True:
-                logits = logits[0][0]
+                logits = logits[0]
                 logits = logits.float().cpu().detach()
-                choices1_logits = logits[[self.sA_id,self.sB_id,self.sC_id,self.sD_id]]
-                choices2_logits = logits[[self.A_id,self.B_id,self.C_id,self.D_id]]
+                choices1_logits = logits[[self.sA_id, self.sB_id, self.sC_id, self.sD_id]]
+                choices2_logits = logits[[self.A_id, self.B_id, self.C_id, self.D_id]]
                 choicesAll_logits = (choices1_logits + choices2_logits).numpy()
                 assert not (np.any(np.isinf(choicesAll_logits)) or np.any(np.isnan(choicesAll_logits)))
                 ans = {0: "A", 1: "B", 2: "C", 3: "D"}[np.argmax(choicesAll_logits)]
-                response = self.tokenizer.decode([logits.argmax(-1).item()])
+                # response = self.tokenizer.decode([logits.argmax(-1).item()])
             else:
                 response = response[0]
                 ans, direct_extract = self.extract_answer(row, response)
@@ -124,7 +126,7 @@ class Llama_Evaluator(Evaluator):
 
             all_answers[str(row_index)] = ans
 
-        correct_ratio = 100*correct_num/len(answers)
+        correct_ratio = 100 * correct_num / len(answers)
 
         if save_result_dir:
             test_df['model_output'] = result
@@ -140,7 +142,7 @@ class Llama_Evaluator(Evaluator):
         if include_answer:
             if cot:
                 example += "\n答案：让我们一步一步思考，\n" + \
-                    line["explanation"] + f"\n所以答案是{line['answer']}。\n\n"
+                           line["explanation"] + f"\n所以答案是{line['answer']}。\n\n"
             else:
                 example += '\n答案：' + line["answer"] + '\n\n'
         else:
@@ -199,11 +201,11 @@ class Llama_Evaluator(Evaluator):
         pattern = ""
         for c in self.choices:
             choices_dict[str(line[f'{c}'])] = c
-            pattern += re.escape(str(line[f'{c}']))+"|"
+            pattern += re.escape(str(line[f'{c}'])) + "|"
         pattern = pattern[:-1]
         m = re.findall(pattern, gen_ans, re.M)
-        print("w/ escape:",repr(pattern),gen_ans,(len(m)>=1))
+        print("w/ escape:", repr(pattern), gen_ans, (len(m) >= 1))
         if len(m) >= 1:
             answer = choices_dict[m[0]]
             return answer, False
-        return  random.choice('ABCD'), False
+        return random.choice('ABCD'), False

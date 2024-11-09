@@ -8,6 +8,7 @@ import time
 
 from mygpt import myGPT
 from tokenizer import Tokenizer
+from bpe_tokenizer import BPE_Tokenizer
 from data import DataLoader, s2t
 
 
@@ -17,8 +18,11 @@ def mstime(): return int(round(time.time() * 1000))
 def init_model(m_path, device, vocab):
     ckpt = torch.load(m_path, map_location='cpu')
     lm_args = ckpt['args']
-    lm_vocab = Tokenizer(
-        vocab, min_occur_cnt=lm_args.min_occur_cnt, specials=[])
+    if vocab_type == "char-based":
+        lm_vocab = Tokenizer(
+            vocab, min_occur_cnt=lm_args.min_occur_cnt, specials=[])
+    else:
+        lm_vocab = BPE_Tokenizer(model_path="./model/m.model")
     lm_model = myGPT(device, lm_vocab, lm_args.embed_dim, lm_args.ff_embed_dim,
                      lm_args.num_heads, lm_args.dropout, lm_args.layers)
     lm_model.load_state_dict(ckpt['model'])
@@ -52,9 +56,9 @@ def greedy(lm_model, lm_vocab, device, s, max_len):
 
     r = ''.join(res[0])
     if "<bos>" in r:
-        return r.split("<bos>"[1])
+        return r.split("<bos>"[1]), x, probs
     else:
-        return r
+        return r, x, probs
 
 
 @torch.no_grad()
@@ -97,9 +101,9 @@ def top_k_inc(lm_model, lm_vocab, device, s, k, max_len):
     res += s_
     r = ''.join(res[0])
     if "<bos>" in r:
-        return r.splot("<bos>")[1]
+        return r.splot("<bos>")[1], x, probs
     else:
-        return r
+        return r, x, probs
 
 
 def top_p_sampling(logits, k, p):
@@ -149,31 +153,32 @@ def top_p_inc(lm_model, lm_vocab, device, s, k, p, max_len):
     res += s_
     r = ''.join(res[0])
     if "<bos>" in r:
-        return r.splot("<bos>")[1]
+        return r.splot("<bos>")[1], x, probs
     else:
-        return r
+        return r, x, probs
 
 
 if __name__ == "__main__":
     val_type = "sft"
+    vocab_type = "bpe"
     device = 7
     print("loading...")
-    m_path = "./ckpt/epoch1_batch_799"
+    m_path = "./ckpt/epoch1_batch_9999"
     v_path = "./model/vocab.txt"
     lm_model, lm_vocab, lm_args = init_model(m_path, device, v_path)
     print("done.")
 
-    max_len = 50
+    max_len = 250
     if val_type == "sft":
         qs = [
-            "### INST:\n ⽩⽇依⼭尽，\n\n### SYS:\n", \
-            "### INST:\n ⽩⽇依⼭尽，\n\n### SYS:\n", \
-            "### INST:\n 已知三个数分别为 1, 2, 3，则它们的平均数是\n\n### SYS:\n", \
-            "### INST:\n ⼩明总共有 15 个苹果，他分别给了 3 个⼈两个苹果，然后⾃⼰⼜吃了⼀个苹果，那么它还剩⼏个苹果？\n\n### SYS:\n", \
-            "### INST:\n 根据⽜顿第⼆定律，物体的加速度等于\n\n### SYS:\n", \
-            "### INST:\n 碳纳⽶管是⼀种新型的材料，具有⾮常独特的电学和光学性质。在过去的⼏年中，我们对碳纳\n\n### SYS:\n", \
-            "### INST:\n 下⾯是⼀段⽤ python 写的快速排序的代码:\n\n### SYS:\n", \
-            "### INST:\n 下⾯是⼀个使⽤ PyTorch 和 Transformer 的示例代码，⽤于训练⼀个⽂本分类模型：import torch\nimport torch.nn as nn\nfrom torch.utils.data import DataLoader, Dataset\n\n### SYS:\n"
+            "### INST:\n 介绍下南京航空航天大学。\n\n### SYS:\n", \
+            "### INST:\n 白日依山尽，\n\n### SYS:\n", \
+            "### INST:\n 已知三个数分别为1，2，3，则它们的平均数是？\n\n### SYS:\n", \
+            "### INST:\n 小明共有15个苹果，他分别给了3个人2个苹果，然后自己又吃了一个苹果，那么他还剩几个苹果？\n\n### SYS:\n", \
+            "### INST:\n 根据牛顿第二定理，物体的加速度等于\n\n### SYS:\n", \
+            "### INST:\n 碳纳米管是一种新型的材料，具有非常独特的电学和光学性质。在过去的几年里，我们对碳纳\n\n### SYS:\n", \
+            "### INST:\n 下面是一段用python写的快速排序代码:\n\n### SYS:\n", \
+            "### INST:\n 下面是一个使用 PyTorch 和 Transformer 的示例代码，用于训练一个文本分类模型：import torch\nimport torch.nn as nn\nfrom torch.utils.data import DataLoader, Dataset\n\n### SYS:\n"
         ]
     else:
         qs = ["介绍下南京航空航天大学。",
@@ -186,21 +191,21 @@ if __name__ == "__main__":
         i += 1
         s = [[w for w in q]]
 
-        r1 = greedy(lm_model, lm_vocab, device, s, max_len)
+        r1, _, _ = greedy(lm_model, lm_vocab, device, s, max_len)
 
         # r2 = beam_search(lm_model, lm_vocab, device, s, max_len)
 
-        r3 = top_k_inc(lm_model, lm_vocab, device, s, 5, max_len)
+        r3, _, _ = top_k_inc(lm_model, lm_vocab, device, s, 5, max_len)
 
-        r4 = top_k_inc(lm_model, lm_vocab, device, s, 10, max_len)
+        r4, _, _ = top_k_inc(lm_model, lm_vocab, device, s, 10, max_len)
 
-        r5 = top_k_inc(lm_model, lm_vocab, device, s, 20, max_len)
+        r5, _, _ = top_k_inc(lm_model, lm_vocab, device, s, 20, max_len)
 
-        r6 = top_k_inc(lm_model, lm_vocab, device, s, 50, max_len)
+        r6, _, _ = top_k_inc(lm_model, lm_vocab, device, s, 50, max_len)
 
-        r7 = top_k_inc(lm_model, lm_vocab, device, s, 500, max_len)
+        r7, _, _ = top_k_inc(lm_model, lm_vocab, device, s, 500, max_len)
 
-        r8 = top_p_inc(lm_model, lm_vocab, device, s, 20, 0.95, max_len)
+        r8, _, _ = top_p_inc(lm_model, lm_vocab, device, s, 20, 0.95, max_len)
 
         print(i)
         print("q: ", q)

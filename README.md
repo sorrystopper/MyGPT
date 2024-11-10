@@ -34,5 +34,13 @@ bash ceval.sh
 1. 在`ceval.sh`中修改自己的模型路径和参数。
 2. 修改了`generate.py`，没懂为什么老师是用`logits=logits[0][0]`，不应该是根据最近生成的token获得的词典大小的logits来预测ABCD吗？
 
+## Qwen_ceval
+执行
+```
+cd Qwen_ceval
+bash ceval.sh
+```
+1. 增加了Qwen的两个模型在ceval上做对比。
+
 ## 总结
 1. 以上代码都能在我服务器上运行，且看起来效果还不错，如果有问题，可以Q我 or Email `1377765332@.com`。

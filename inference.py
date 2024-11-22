@@ -69,7 +69,8 @@ def top_k_inc(lm_model, lm_vocab, device, s, k, max_len):
     x = x.to(device)
     res = []
     for l in range(max_len):
-        probs, pred, incremental_state = lm_model.work_incremental(x, incremental_state)
+        probs, pred, incremental_state = lm_model.work_incremental(
+            x, incremental_state)
         next_tk = []
         for i in range(len(s)):
             if l == 0:
@@ -83,10 +84,12 @@ def top_k_inc(lm_model, lm_vocab, device, s, k, max_len):
             sampled = torch.multinomial(ps, num_samples=1)
             sampled_idx = idx[sampled]
             next_tk.append(lm_vocab.idx2token(sampled_idx.item()))
-
+        import ipdb
+        ipdb.set_trace()
         s_ = []
         bidx = [1] * len(s)
         for idx, (sent, t) in enumerate(zip(s, next_tk)):
+
             if t == '<eos>':
                 res.append(sent)
             else:
@@ -101,9 +104,21 @@ def top_k_inc(lm_model, lm_vocab, device, s, k, max_len):
     res += s_
     r = ''.join(res[0])
     if "<bos>" in r:
-        return r.splot("<bos>")[1], x, probs
+        return r.split("<bos>")[1], x, probs
     else:
         return r, x, probs
+
+
+def top_k_inc_dpo(lm_model, lm_vocab, device, inp, msk, max_len, k=5, train_type=0):
+    inp = torch.transpose(inp, 0, 1)
+    if inp.size(0) > 1024:
+        inp = inp[:1024, :]
+    inp = inp.to(device)
+    incremental_state = None
+    probs, pred, incremental_state = lm_model.work_incremental(
+        inp, incremental_state)
+    # ipdb.set_trace()
+    return msk, inp, probs
 
 
 def top_p_sampling(logits, k, p):
@@ -121,7 +136,8 @@ def top_p_inc(lm_model, lm_vocab, device, s, k, p, max_len):
     x = x.to(device)
     res = []
     for l in range(max_len):
-        probs, pred, incremental_state = lm_model.work_incremental(x, incremental_state)
+        probs, pred, incremental_state = lm_model.work_incremental(
+            x, incremental_state)
         next_tk = []
         for i in range(len(s)):
             if l == 0:
@@ -160,8 +176,8 @@ def top_p_inc(lm_model, lm_vocab, device, s, k, p, max_len):
 
 if __name__ == "__main__":
     val_type = "sft"
-    vocab_type = "bpe"
-    device = 7
+    vocab_type = "char-based"
+    device = 1
     print("loading...")
     m_path = "./ckpt/epoch1_batch_9999"
     v_path = "./model/vocab.txt"
@@ -171,19 +187,23 @@ if __name__ == "__main__":
     max_len = 250
     if val_type == "sft":
         qs = [
-            "### INST:\n 介绍下南京航空航天大学。\n\n### SYS:\n", \
-            "### INST:\n 白日依山尽，\n\n### SYS:\n", \
-            "### INST:\n 已知三个数分别为1，2，3，则它们的平均数是？\n\n### SYS:\n", \
-            "### INST:\n 小明共有15个苹果，他分别给了3个人2个苹果，然后自己又吃了一个苹果，那么他还剩几个苹果？\n\n### SYS:\n", \
-            "### INST:\n 根据牛顿第二定理，物体的加速度等于\n\n### SYS:\n", \
-            "### INST:\n 碳纳米管是一种新型的材料，具有非常独特的电学和光学性质。在过去的几年里，我们对碳纳\n\n### SYS:\n", \
-            "### INST:\n 下面是一段用python写的快速排序代码:\n\n### SYS:\n", \
+            "### INST:\n 介绍下南京航空航天大学。\n\n### SYS:\n",
+            "### INST:\n 白日依山尽，\n\n### SYS:\n",
+            "### INST:\n 已知三个数分别为1，2，3，则它们的平均数是？\n\n### SYS:\n",
+            "### INST:\n 小明共有15个苹果，他分别给了3个人2个苹果，然后自己又吃了一个苹果，那么他还剩几个苹果？\n\n### SYS:\n",
+            "### INST:\n 根据牛顿第二定理，物体的加速度等于\n\n### SYS:\n",
+            "### INST:\n 碳纳米管是一种新型的材料，具有非常独特的电学和光学性质。在过去的几年里，我们对碳纳\n\n### SYS:\n",
+            "### INST:\n 下面是一段用python写的快速排序代码:\n\n### SYS:\n",
             "### INST:\n 下面是一个使用 PyTorch 和 Transformer 的示例代码，用于训练一个文本分类模型：import torch\nimport torch.nn as nn\nfrom torch.utils.data import DataLoader, Dataset\n\n### SYS:\n"
         ]
     else:
         qs = ["介绍下南京航空航天大学。",
               "Please introduce Nanjing University of Aeronautics and Astronautics",
-              "The meaning of life is "]
+              "The meaning of life is ",
+              "白日依山尽，",
+              "君不见，黄河之水天上来，奔流到海不复回。君不见，",
+              "秦孝公据崤函之固,拥雍州之地,君臣固守以窥周室,有席卷天下,包举宇内,囊括四海之意,并吞八荒之心。",
+              "已知三个数分别为1，2，3，则它们的平均数是"]
     print(qs)
     i = 0
     for q in qs:

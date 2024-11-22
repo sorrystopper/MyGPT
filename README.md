@@ -37,10 +37,10 @@ bash ceval.sh
 1. 以上代码都能在我服务器上运行，且看起来效果还不错，如果有问题，可以Q我 or Email `1377765332@.com`。
 
 # 更新！！！
-1. <font color="red">要参考代码请和我说一声哈！</font>
-2. 本次实验更新了`DPO`和`Application`；
-3. `DPO`分别对自己的`sft`模型和`Qwen`系列模型进行了`DPO`更新；
-4. `Application`选择的是文本分类，直接使用`Qwen`系列的模型，分别实现使用`zero-shot`的`prompt`进行对话生成的文本分类，和直接使用`Qwen` `Model`代码中的`AutoModelForSequenceClassification`进行直接分类训练。
+❗ **注意**：要参考代码请和我说一声哈!
+1. 本次实验更新了`DPO`和`Application`；
+2. `DPO`分别对自己的`sft`模型和`Qwen`系列模型进行了`DPO`更新；
+3. `Application`选择的是文本分类，直接使用`Qwen`系列的模型，分别实现使用`zero-shot`的`prompt`进行对话生成的文本分类，和直接使用`Qwen` `Model`代码中的`AutoModelForSequenceClassification`进行直接分类训练。
 
 ## DPO
 1. 分别在`DPO_MyGPT`和`DPO_Qwen`文件夹中(训练数据自己准备)

@@ -1,8 +1,3 @@
-# 注意！！！
-1. 我是用V100跑了9hpretrain后的模型+一坤时sft后的模型（人工看起来效果还不错？），因为是在服务器上跑的，懒得下载到本地（下起来可能会导致vscode卡住），要注意的是`pretrain`中的`bash step_02.sh`中的`CUDA_VISIBLE_DEVICE`、`world_size`和`gpus`参数都需要根据自己的卡来调整
-2. 如果你要参考我的代码，可以提前和我说一声？ 
-3. 有问题可以Q我 or Email at `1377765332@.com`。
-
 ## train_tokenizer
 train_tokenizer代码在`train_tokenizer.py`中，用`bash step_01.sh`运行，这里使用的是`char-based`的方法，后面看时间情况改成使用`bpe`的方法（看来是没时间弄了）。
 
@@ -34,10 +29,9 @@ bash ceval.sh
 2. 修改了`generate.py`，没懂为什么老师是用`logits=logits[0][0]`，不应该是根据最近生成的token获得的词典大小的logits来预测ABCD吗？
 
 ## 总结
-1. 以上代码都能在我服务器上运行，且看起来效果还不错，如果有问题，可以Q我 or Email `1377765332@.com`。
+1. 以上代码都能在我服务器上运行，且看起来效果还不错，如果有问题，可以Q我 or Email `1377765332@qq.com`。
 
 # 更新！！！
-❗ **注意**：要参考代码请和我说一声哈!
 1. 本次实验更新了`DPO`和`Application`；
 2. `DPO`分别对自己的`sft`模型和`Qwen`系列模型进行了`DPO`更新；
 3. `Application`选择的是文本分类，直接使用`Qwen`系列的模型，分别实现使用`zero-shot`的`prompt`进行对话生成的文本分类，和直接使用`Qwen` `Model`代码中的`AutoModelForSequenceClassification`进行直接分类训练。
